@@ -33,7 +33,8 @@ pub struct Minesweeper {
     pub grid: Grid,
 }
 
-struct GridDimensions {
+#[derive(PartialEq, Debug)]
+pub struct GridDimensions {
     x: usize,
     y: usize,
 }
@@ -44,6 +45,7 @@ impl GridDimensions {
     }
 }
 
+#[derive(PartialEq, Debug)]
 pub enum Difficulty {
     Easy,
     Medium,
