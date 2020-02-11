@@ -1,3 +1,7 @@
+use rand;
+use rand::Rng;
+
+#[derive(PartialEq)]
 pub enum SquareState {
     Clear,
     Bomb,
@@ -58,10 +62,55 @@ fn create_grid(dimensions: GridDimensions) -> Grid {
     for x in 0..dimensions.x {
         let mut row: Row = Vec::new();
         for y in 0..dimensions.y {
-            row.push(Square::new(false, SquareState::Clear));
+            let mut rng = rand::thread_rng();
+            let rnd = rng.gen_range(0, 2);
+            let mut square_state: SquareState;
+            match rnd {
+                0 => square_state = SquareState::Bomb,
+                1 => square_state = SquareState::Clear,
+                _ => panic!("never"),
+            }
+            row.push(Square::new(false, square_state));
         }
 
         grid.push(row);
+    }
+
+    for x in 0..dimensions.x {
+        for y in 0..dimensions.y {
+            let mut bomb_count = 0;
+            let mut x_lower = match x {
+                0 => 0,
+                _ => x - 1,
+            };
+            let mut x_upper = x + 2;
+            let mut y_lower = match y {
+                0 => 0,
+                _ => y - 1,
+            };
+            let mut y_upper = y + 2;
+            if x_upper > dimensions.x {
+                x_upper = x + 1;
+            }
+            if y_upper > dimensions.y {
+                y_upper = y + 1;
+            }
+            println!(
+                "Square: ({},{}): ({},{}) to ({},{})",
+                x, y, x_lower, y_lower, x_upper, y_upper
+            );
+            for i in x_lower..x_upper {
+                for j in y_lower..y_upper {
+                    println!("Checking ({},{})", i, j);
+                    if grid[i][j].state == SquareState::Bomb {
+                        bomb_count += 1;
+                    }
+                }
+            }
+            if bomb_count > 0 && grid[x][y].state == SquareState::Clear {
+                grid[x][y].state = SquareState::Count(bomb_count);
+            }
+        }
     }
 
     grid
@@ -95,7 +144,7 @@ impl Minesweeper {
                             match state {
                                 SquareState::Bomb => print!("💣 "),
                                 SquareState::Clear => print!("  "),
-                                SquareState::Count(c) => print!("{}", c),
+                                SquareState::Count(c) => print!("{} ", c),
                             }
                         } else {
                             print!("⬜ ");
@@ -108,8 +157,23 @@ impl Minesweeper {
         }
     }
 
+    pub fn reveal_board(&mut self) {
+        for row in &mut self.grid {
+            for square in row {
+                square.revealed = true;
+            }
+        }
+    }
+
     pub fn parse_move(&mut self, input: &str) {
         let dims: Vec<&str> = input.split(" ").collect();
+        if dims[0] == "r\n" {
+            self.reveal_board();
+            clear_screen();
+            self.print();
+            return;
+        }
+
         let x = match dims[0].replace("-", "").parse::<usize>() {
             Err(err) => return,
             Ok(x) => x,
