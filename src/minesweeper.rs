@@ -32,12 +32,11 @@ impl Grid {
             let mut row: Row = Vec::new();
             for y in 0..dimensions.y {
                 let mut rng = rand::thread_rng();
-                let rnd = rng.gen_range(0, 2);
+                let rnd = rng.gen_range(0, 6);
                 let mut square_state: SquareState;
                 match rnd {
                     0 => square_state = SquareState::Bomb,
-                    1 => square_state = SquareState::Clear,
-                    _ => panic!("never"),
+                    _ => square_state = SquareState::Clear,
                 }
                 row.push(Square::new(false, square_state));
             }
@@ -64,13 +63,8 @@ impl Grid {
                 if y_upper > dimensions.y {
                     y_upper = y + 1;
                 }
-                println!(
-                    "Square: ({},{}): ({},{}) to ({},{})",
-                    x, y, x_lower, y_lower, x_upper, y_upper
-                );
                 for i in x_lower..x_upper {
                     for j in y_lower..y_upper {
-                        println!("Checking ({},{})", i, j);
                         if grid[i][j].state == SquareState::Bomb {
                             bomb_count += 1;
                         }
@@ -83,6 +77,37 @@ impl Grid {
         }
 
         Self(grid)
+    }
+
+    pub fn get_adjacent_unrevealed_squares(&mut self, x: usize, y: usize) -> Vec<Vec<usize>> {
+        let mut x_lower = match x {
+            0 => 0,
+            _ => x - 1,
+        };
+        let mut x_upper = x + 2;
+        let mut y_lower = match y {
+            0 => 0,
+            _ => y - 1,
+        };
+        let mut y_upper = y + 2;
+        if x_upper > self.0[0].len() {
+            x_upper = x + 1;
+        }
+        if y_upper > self.0.len() {
+            y_upper = y + 1;
+        }
+
+        let mut adjacent_squares: Vec<Vec<usize>> = Vec::new();
+
+        for i in x_lower..x_upper {
+            for j in y_lower..y_upper {
+                if self.0[i][j].revealed == false {
+                    adjacent_squares.push(vec![i, j])
+                }
+            }
+        }
+
+        adjacent_squares
     }
 }
 
@@ -136,7 +161,11 @@ impl Minesweeper {
     }
 
     pub fn print(&self) {
-        print!("🙂\n");
+        match self.game_state {
+            GameState::Playing => print!("🙂\n"),
+            GameState::Lose => print!("🙁\n"),
+            GameState::Win => print!("😎\n"),
+        }
         for row in &self.grid.0 {
             for square in row {
                 match square {
@@ -166,6 +195,26 @@ impl Minesweeper {
         }
     }
 
+    fn reveal_clear_region(&mut self, x: usize, y: usize) {
+        let mut a = self.grid.get_adjacent_unrevealed_squares(x, y);
+        for i in 0..a.len() {
+            let coords = &a[i];
+            match self.grid.0[coords[0]][coords[1]].state {
+                SquareState::Bomb => (),
+                SquareState::Count(_) => self.grid.0[coords[0]][coords[1]].revealed = true,
+                SquareState::Clear => {
+                    self.grid.0[coords[0]][coords[1]].revealed = true;
+                    let adj = self
+                        .grid
+                        .get_adjacent_unrevealed_squares(coords[0], coords[1]);
+                    for c in adj {
+                        a.push(c[..].to_vec());
+                    }
+                }
+            }
+        }
+    }
+
     pub fn parse_move(&mut self, input: &str) {
         let dims: Vec<&str> = input.split(" ").collect();
         if dims[0] == "r\n" {
@@ -187,6 +236,15 @@ impl Minesweeper {
         if x >= self.grid.0.len() || y >= self.grid.0[0].len() {
         } else {
             self.grid.0[x][y].revealed = true;
+            if self.grid.0[x][y].state == SquareState::Bomb {
+                self.game_state = GameState::Lose;
+                self.reveal_board();
+            }
+
+            if self.grid.0[x][y].state == SquareState::Clear {
+                self.reveal_clear_region(x, y);
+            }
+
             clear_screen();
             self.print();
         }
