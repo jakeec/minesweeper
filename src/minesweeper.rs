@@ -8,13 +8,20 @@ pub enum SquareState {
     Count(usize),
 }
 
+#[derive(PartialEq)]
+pub enum HiddenState {
+    Hidden,
+    Revealed,
+    Flagged,
+}
+
 pub struct Square {
-    revealed: bool,
+    revealed: HiddenState,
     state: SquareState,
 }
 
 impl Square {
-    fn new(revealed: bool, state: SquareState) -> Self {
+    fn new(revealed: HiddenState, state: SquareState) -> Self {
         Self {
             revealed: revealed,
             state: state,
@@ -38,7 +45,7 @@ impl Grid {
                     0 => square_state = SquareState::Bomb,
                     _ => square_state = SquareState::Clear,
                 }
-                row.push(Square::new(false, square_state));
+                row.push(Square::new(HiddenState::Hidden, square_state));
             }
 
             grid.push(row);
@@ -101,7 +108,7 @@ impl Grid {
 
         for i in x_lower..x_upper {
             for j in y_lower..y_upper {
-                if self.0[i][j].revealed == false {
+                if self.0[i][j].revealed == HiddenState::Hidden {
                     adjacent_squares.push(vec![i, j])
                 }
             }
@@ -170,17 +177,15 @@ impl Minesweeper {
         for row in &self.grid.0 {
             for square in row {
                 match square {
-                    Square { revealed, state } => {
-                        if *revealed {
-                            match state {
-                                SquareState::Bomb => print!("💣 "),
-                                SquareState::Clear => print!("  "),
-                                SquareState::Count(c) => print!("{} ", c),
-                            }
-                        } else {
-                            print!("⬜ ");
-                        }
-                    }
+                    Square { revealed, state } => match revealed {
+                        HiddenState::Hidden => print!("⬜ "),
+                        HiddenState::Flagged => print!("🚩 "),
+                        HiddenState::Revealed => match state {
+                            SquareState::Bomb => print!("💣 "),
+                            SquareState::Clear => print!("  "),
+                            SquareState::Count(c) => print!("{} ", c),
+                        },
+                    },
                 }
             }
 
@@ -191,7 +196,7 @@ impl Minesweeper {
     pub fn reveal_board(&mut self) {
         for row in &mut self.grid.0 {
             for square in row {
-                square.revealed = true;
+                square.revealed = HiddenState::Revealed;
             }
         }
     }
@@ -204,9 +209,11 @@ impl Minesweeper {
             let coords = &a[i];
             match self.grid.0[coords[0]][coords[1]].state {
                 SquareState::Bomb => (),
-                SquareState::Count(_) => self.grid.0[coords[0]][coords[1]].revealed = true,
+                SquareState::Count(_) => {
+                    self.grid.0[coords[0]][coords[1]].revealed = HiddenState::Revealed
+                }
                 SquareState::Clear => {
-                    self.grid.0[coords[0]][coords[1]].revealed = true;
+                    self.grid.0[coords[0]][coords[1]].revealed = HiddenState::Revealed;
                     let adj = self
                         .grid
                         .get_adjacent_unrevealed_squares(coords[0], coords[1]);
@@ -222,7 +229,10 @@ impl Minesweeper {
     }
 
     pub fn parse_move(&mut self, input: &str) {
-        let dims: Vec<&str> = input.split(" ").collect();
+        let dims: Vec<&str> = input.split_whitespace().collect();
+        let mut flag = false;
+        let mut x = 0;
+        let mut y = 1;
         if dims[0] == "r\n" {
             self.reveal_board();
             clear_screen();
@@ -230,18 +240,32 @@ impl Minesweeper {
             return;
         }
 
-        let x = match dims[0].replace("-", "").parse::<usize>() {
+        if dims[0].chars().collect::<Vec<char>>()[0] == 'f' {
+            flag = true;
+            x = 1;
+            y = 2;
+        }
+
+        let x = match dims[x].replace("-", "").parse::<usize>() {
             Err(err) => return,
             Ok(x) => x,
         };
-        let y = match dims[1].replace("-", "").replace("\n", "").parse::<usize>() {
+        let y = match dims[y].replace("-", "").replace("\n", "").parse::<usize>() {
             Err(err) => return,
             Ok(x) => x,
         };
 
         if x >= self.grid.0.len() || y >= self.grid.0[0].len() {
         } else {
-            self.grid.0[x][y].revealed = true;
+            if flag && self.grid.0[x][y].revealed != HiddenState::Revealed {
+                match self.grid.0[x][y].revealed {
+                    HiddenState::Flagged => self.grid.0[x][y].revealed = HiddenState::Hidden,
+                    HiddenState::Hidden => self.grid.0[x][y].revealed = HiddenState::Flagged,
+                    _ => (),
+                }
+            } else {
+                self.grid.0[x][y].revealed = HiddenState::Revealed;
+            }
             if self.grid.0[x][y].state == SquareState::Bomb {
                 self.game_state = GameState::Lose;
                 self.reveal_board();
@@ -251,7 +275,7 @@ impl Minesweeper {
                 self.reveal_clear_region(x, y);
             }
 
-            // clear_screen();
+            clear_screen();
             self.print();
         }
     }
