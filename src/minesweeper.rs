@@ -166,6 +166,7 @@ impl Minesweeper {
             GameState::Lose => print!("🙁\n"),
             GameState::Win => print!("😎\n"),
         }
+
         for row in &self.grid.0 {
             for square in row {
                 match square {
@@ -197,7 +198,9 @@ impl Minesweeper {
 
     fn reveal_clear_region(&mut self, x: usize, y: usize) {
         let mut a = self.grid.get_adjacent_unrevealed_squares(x, y);
-        for i in 0..a.len() {
+        let mut count = a.len();
+        let mut i = 0;
+        while count > 0 {
             let coords = &a[i];
             match self.grid.0[coords[0]][coords[1]].state {
                 SquareState::Bomb => (),
@@ -207,11 +210,14 @@ impl Minesweeper {
                     let adj = self
                         .grid
                         .get_adjacent_unrevealed_squares(coords[0], coords[1]);
+                    count += &adj.len();
                     for c in adj {
                         a.push(c[..].to_vec());
                     }
                 }
             }
+            i += 1;
+            count -= 1;
         }
     }
 
@@ -245,7 +251,7 @@ impl Minesweeper {
                 self.reveal_clear_region(x, y);
             }
 
-            clear_screen();
+            // clear_screen();
             self.print();
         }
     }
