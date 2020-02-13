@@ -1,4 +1,5 @@
 mod minesweeper;
+use getch::Getch;
 use minesweeper::{Difficulty, GameState, GridDimensions, Minesweeper};
 use std::io::Stdin;
 
@@ -34,9 +35,17 @@ fn main() {
     let mut game = Minesweeper::new(difficulty.unwrap());
 
     game.print();
+    // h = 104
+    // j = 106
+    // k = 107
+    // l = 108
+    // space = 32
+    // f = 102
     while game.game_state == GameState::Playing {
-        stdin.read_line(&mut input);
-        game.parse_move(&input);
-        input = String::from("");
+        let get_key = &[Getch::new().getch().unwrap()];
+        game.parse_arrow_input(get_key);
+        // stdin.read_line(&mut input);
+        // game.parse_move(&input);
+        // input = String::from("");
     }
 }

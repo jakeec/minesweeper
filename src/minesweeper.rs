@@ -1,5 +1,7 @@
 use rand;
 use rand::Rng;
+use std::io::Write;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 #[derive(PartialEq)]
 pub enum SquareState {
@@ -17,6 +19,7 @@ pub enum HiddenState {
 
 pub struct Square {
     revealed: HiddenState,
+    selected: bool,
     state: SquareState,
 }
 
@@ -24,6 +27,7 @@ impl Square {
     fn new(revealed: HiddenState, state: SquareState) -> Self {
         Self {
             revealed: revealed,
+            selected: false,
             state: state,
         }
     }
@@ -127,6 +131,7 @@ pub enum GameState {
 
 pub struct Minesweeper {
     pub game_state: GameState,
+    pub cursor: (usize, usize),
     pub grid: Grid,
 }
 
@@ -154,10 +159,19 @@ fn clear_screen() {
     print!("{}[2J", 27 as char);
 }
 
+#[derive(Debug)]
+pub enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
 impl Minesweeper {
     pub fn new(difficulty: Difficulty) -> Self {
         Self {
             game_state: GameState::Playing,
+            cursor: (0, 0),
             grid: match difficulty {
                 Difficulty::Easy => Grid::new(GridDimensions::new(5, 5)),
                 Difficulty::Medium => Grid::new(GridDimensions::new(7, 7)),
@@ -174,19 +188,33 @@ impl Minesweeper {
             GameState::Win => print!("😎\n"),
         }
 
+        let mut stdout = StandardStream::stdout(ColorChoice::Always);
+
         for row in &self.grid.0 {
             for square in row {
                 match square {
-                    Square { revealed, state } => match revealed {
-                        HiddenState::Hidden => print!("⬜ "),
-                        HiddenState::Flagged => print!("🚩 "),
-                        HiddenState::Revealed => match state {
-                            SquareState::Bomb => print!("💣 "),
-                            SquareState::Clear => print!("  "),
-                            SquareState::Count(c) => print!("{} ", c),
-                        },
-                    },
+                    Square {
+                        revealed,
+                        state,
+                        selected,
+                    } => {
+                        if *selected {
+                            stdout.set_color(ColorSpec::new().set_bg(Some(Color::Green)));
+                        }
+
+                        match revealed {
+                            HiddenState::Hidden => write!(&mut stdout, "⬜ "),
+                            HiddenState::Flagged => write!(&mut stdout, "🚩 "),
+                            HiddenState::Revealed => match state {
+                                SquareState::Bomb => write!(&mut stdout, "💣 "),
+                                SquareState::Clear => write!(&mut stdout, "  "),
+                                SquareState::Count(c) => write!(&mut stdout, "{} ", c),
+                            },
+                        };
+                    }
                 }
+
+                stdout.set_color(ColorSpec::new().set_bg(None));
             }
 
             print!("\n");
@@ -278,5 +306,80 @@ impl Minesweeper {
             clear_screen();
             self.print();
         }
+    }
+
+    pub fn get_square<'a>(&'a mut self, x: usize, y: usize) -> &'a mut Square {
+        &mut self.grid.0[x][y]
+    }
+
+    pub fn move_cursor(&mut self, dir: Direction) {
+        self.get_square(self.cursor.0, self.cursor.1).selected = false;
+        match dir {
+            Direction::Up => {
+                if self.cursor.0 > 0 {
+                    self.cursor.0 -= 1;
+                }
+            }
+            Direction::Down => {
+                if self.cursor.0 < self.grid.0.len() - 1 {
+                    self.cursor.0 += 1;
+                }
+            }
+            Direction::Left => {
+                if self.cursor.1 > 0 {
+                    self.cursor.1 -= 1;
+                }
+            }
+            Direction::Right => {
+                if self.cursor.1 < self.grid.0[0].len() - 1 {
+                    self.cursor.1 += 1;
+                }
+            }
+        }
+    }
+
+    pub fn parse_arrow_input(&mut self, input: &[u8]) {
+        const H_KEY: u8 = 104;
+        const J_KEY: u8 = 106;
+        const K_KEY: u8 = 107;
+        const L_KEY: u8 = 108;
+        const SPACE_KEY: u8 = 32;
+        const F_KEY: u8 = 102;
+
+        match input[0] {
+            H_KEY => self.move_cursor(Direction::Left),
+            J_KEY => self.move_cursor(Direction::Down),
+            K_KEY => self.move_cursor(Direction::Up),
+            L_KEY => self.move_cursor(Direction::Right),
+            SPACE_KEY => {
+                let x = self.cursor.0;
+                let y = self.cursor.1;
+                if x >= self.grid.0.len() || y >= self.grid.0[0].len() {
+                } else {
+                    self.grid.0[x][y].revealed = HiddenState::Revealed;
+                    if self.grid.0[x][y].state == SquareState::Bomb {
+                        self.game_state = GameState::Lose;
+                        self.reveal_board();
+                    }
+                    if self.grid.0[x][y].state == SquareState::Clear {
+                        self.reveal_clear_region(x, y);
+                    }
+                }
+            }
+            F_KEY => {
+                let x = self.cursor.0;
+                let y = self.cursor.1;
+                match self.grid.0[x][y].revealed {
+                    HiddenState::Flagged => self.grid.0[x][y].revealed = HiddenState::Hidden,
+                    HiddenState::Hidden => self.grid.0[x][y].revealed = HiddenState::Flagged,
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
+        self.get_square(self.cursor.0, self.cursor.1).selected = true;
+
+        // clear_screen();
+        self.print();
     }
 }
