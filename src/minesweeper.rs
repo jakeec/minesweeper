@@ -44,7 +44,7 @@ impl Grid {
             for y in 0..dimensions.y {
                 let mut rng = rand::thread_rng();
                 let rnd = rng.gen_range(0, 6);
-                let mut square_state: SquareState;
+                let square_state: SquareState;
                 match rnd {
                     0 => square_state = SquareState::Bomb,
                     _ => square_state = SquareState::Clear,
@@ -58,12 +58,12 @@ impl Grid {
         for x in 0..dimensions.x {
             for y in 0..dimensions.y {
                 let mut bomb_count = 0;
-                let mut x_lower = match x {
+                let x_lower = match x {
                     0 => 0,
                     _ => x - 1,
                 };
                 let mut x_upper = x + 2;
-                let mut y_lower = match y {
+                let y_lower = match y {
                     0 => 0,
                     _ => y - 1,
                 };
@@ -91,12 +91,12 @@ impl Grid {
     }
 
     pub fn get_adjacent_unrevealed_squares(&mut self, x: usize, y: usize) -> Vec<Vec<usize>> {
-        let mut x_lower = match x {
+        let x_lower = match x {
             0 => 0,
             _ => x - 1,
         };
         let mut x_upper = x + 2;
-        let mut y_lower = match y {
+        let y_lower = match y {
             0 => 0,
             _ => y - 1,
         };
@@ -199,7 +199,9 @@ impl Minesweeper {
                         selected,
                     } => {
                         if *selected {
-                            stdout.set_color(ColorSpec::new().set_bg(Some(Color::Green)));
+                            stdout
+                                .set_color(ColorSpec::new().set_bg(Some(Color::Green)))
+                                .unwrap();
                         }
 
                         match revealed {
@@ -214,7 +216,7 @@ impl Minesweeper {
                     }
                 }
 
-                stdout.set_color(ColorSpec::new().set_bg(None));
+                stdout.set_color(ColorSpec::new().set_bg(None)).unwrap();
             }
 
             print!("\n");
@@ -253,58 +255,6 @@ impl Minesweeper {
             }
             i += 1;
             count -= 1;
-        }
-    }
-
-    pub fn parse_move(&mut self, input: &str) {
-        let dims: Vec<&str> = input.split_whitespace().collect();
-        let mut flag = false;
-        let mut x = 0;
-        let mut y = 1;
-        if dims[0] == "r\n" {
-            self.reveal_board();
-            clear_screen();
-            self.print();
-            return;
-        }
-
-        if dims[0].chars().collect::<Vec<char>>()[0] == 'f' {
-            flag = true;
-            x = 1;
-            y = 2;
-        }
-
-        let x = match dims[x].replace("-", "").parse::<usize>() {
-            Err(err) => return,
-            Ok(x) => x,
-        };
-        let y = match dims[y].replace("-", "").replace("\n", "").parse::<usize>() {
-            Err(err) => return,
-            Ok(x) => x,
-        };
-
-        if x >= self.grid.0.len() || y >= self.grid.0[0].len() {
-        } else {
-            if flag && self.grid.0[x][y].revealed != HiddenState::Revealed {
-                match self.grid.0[x][y].revealed {
-                    HiddenState::Flagged => self.grid.0[x][y].revealed = HiddenState::Hidden,
-                    HiddenState::Hidden => self.grid.0[x][y].revealed = HiddenState::Flagged,
-                    _ => (),
-                }
-            } else {
-                self.grid.0[x][y].revealed = HiddenState::Revealed;
-            }
-            if self.grid.0[x][y].state == SquareState::Bomb {
-                self.game_state = GameState::Lose;
-                self.reveal_board();
-            }
-
-            if self.grid.0[x][y].state == SquareState::Clear {
-                self.reveal_clear_region(x, y);
-            }
-
-            clear_screen();
-            self.print();
         }
     }
 
@@ -379,7 +329,7 @@ impl Minesweeper {
         }
         self.get_square(self.cursor.0, self.cursor.1).selected = true;
 
-        // clear_screen();
+        clear_screen();
         self.print();
     }
 }
